@@ -136,4 +136,66 @@ router.post(
   }
 );
 
+// Dev-only email verification endpoint
+router.post(
+  "/verify",
+  [
+    body("email")
+      .isEmail()
+      .normalizeEmail()
+      .withMessage("Please provide a valid email"),
+    body("code")
+      .isLength({ min: 6, max: 6 })
+      .withMessage("Verification code must be 6 digits"),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: errors.array(),
+        });
+      }
+
+      const { email, code } = req.body;
+      const user = await User.findOne({ email });
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      if (!/^\d{6}$/.test(code)) {
+        return res.status(400).json({
+          success: false,
+          message: "Verification code must be 6 digits",
+        });
+      }
+
+      const token = generateToken(user._id);
+
+      return res.json({
+        success: true,
+        message: "Email verified successfully",
+        data: {
+          user,
+          token,
+        },
+      });
+    } catch (error) {
+      console.error("Verification error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Server error during verification",
+        error:
+          process.env.NODE_ENV === "development" ? error.message : undefined,
+      });
+    }
+  }
+);
+
 module.exports = router;
